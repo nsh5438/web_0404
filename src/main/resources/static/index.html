@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Comment</title>
+    <script
+            src="http://code.jquery.com/jquery-3.3.1.js"
+            integrity="sha256-2Kok7MbOyxpgUVvAk/HJ2jigOSYS2auK4Pfzbm7uH60="
+            crossorigin="anonymous"></script>
+</head>
+<body>
+
+    <!--Comment-->
+    <h1>Comment List</h1>
+    <div>
+        <input id="cmt">
+        <button onclick="AddComment()">등록</button>
+    </div>
+    <div id="comments-list"></div>
+
+    <!--User-->
+    <h1>User List</h1>
+    <div>
+        <input id="name" placeholder="UserName">
+        <input id="email" placeholder="Email">
+        <button onclick="AddUser()">등록</button>
+    </div>
+    <div>
+        <input type="file" id="uploadFile">
+    </div>
+    <div id="users-list"></div>
+
+    <script>
+        async function UploadFile(id){
+            try{
+                let fileInput = $("#uploadFile")[0].files[0];
+                let formData = new FormData();
+                formData.append("uploadFile",fileInput);
+                let response = await $.ajax({
+                    type:"post",
+                    url:"/attachment",
+                    data:formData,
+                    contentType: false,
+                    processData: false
+                });
+
+                let responses = await $.ajax({
+                    url: '/uploadfile/' + id,
+                    type:'put',
+                    contentType:'application/json',
+                    dataType:'json',
+                    data:JSON.stringify({ savepath : response.savepath , ordinaryname : response.originalname })
+                });
+
+
+                console.log(JSON.stringify(response));
+            }catch (e) {
+                console.log(JSON.stringify(e));
+            }
+
+        }
+
+
+        async function CommentList(){
+            try{
+                let response = await $.get('/list');
+                // $("#comments-list").html(JSON.stringify(response));
+                for(let i = 0 ; i<response.length;i++){
+                    let comments = response[i];
+                    addLine(comments);
+                }
+            }catch (e) {
+                $("#comments-list").html(JSON.stringify(e));
+            }
+        }
+
+        async function UserList() {
+            try{
+                let response = await $.get('/listuser');
+                for (let i=0 ; i<response.length;i++){
+                    let users = response[i];
+                    addUserLine(users);
+                }
+            }catch (e) {
+                $("#users-list").html(JSON.stringify(e));
+            }
+        }
+
+        function addLine(response) {
+            $("#comments-list").append(
+                `<div id="line${response.id}" style="display: flex; border-bottom: 1px solid silver;">
+                        <div style="width: 150px;">${response.username}</div>
+                        <div style="width: 350px;overflow: auto;">${response.comment}</div>
+                        <div><button onclick="EditComment(this,${response.id})">수정</button>
+                        <button onclick="DeleteComment(this,${response.id})">삭제</button></div>
+                        </div>`
+            );
+        }
+
+        function addUserLine(response){
+            $("#users-list").append(
+                `<div id="lineuser${response.id}" style="display: flex; border-bottom: 1px solid silver;">
+                        <div style="width: 150px;">${response.username}</div>
+                        <div style="width: 350px;overflow: auto;">${response.email}</div>
+                        <button onclick="UploadFile(${response.id})">파일업로드</button>
+                        <button onclick="DeleteUser(this,${response.id})">삭제</button></div>
+                        </div>`
+            )
+        }
+
+        async function AddComment() {
+            let cmt = $("#cmt").val().trim();
+            let response = await $.post({
+                url:'/addcmt',
+                contentType:'application/json',
+                dataType:'json',
+                data:JSON.stringify({ userid : 1, comment : cmt})
+            });
+            addLine(response);
+        }
+
+        async function AddUser(){
+            let username = $("#name").val().trim();
+            let email = $("#email").val().trim();
+            let response = await $.post({
+               url:'/adduser',
+               contentType:'application/json',
+               dataType:'json',
+               data:JSON.stringify({username:username,email:email})
+            });
+            addUserLine(response);
+        }
+
+        async function DeleteComment(button,id) {
+            if($(button).text() === '삭제'){
+                try{
+                    if(confirm("삭제하시겠습니까?") === true){
+                        let response = await $.ajax({
+                            url: '/deletecmt/' + id,
+                            type:'delete'
+                        });
+                        if(response === true){
+                            $(`#line${id}`).remove();
+                        }else{
+                            alert("삭제실패");
+                        }
+                    }
+                }catch (e) {
+                    console.log(JSON.stringify(e));
+                }
+            }else if($(button).text() === '취소'){
+                let line = $(`#line${id}`);
+                line.find('div:nth-child(2)').html(content);
+                $(button).text('삭제');
+                $(button).prev().text('수정');
+            }
+        }
+
+        async function DeleteUser(button,id){
+            if($(button).text() === '삭제'){
+                try{
+                    if(confirm("삭제하시겠습니까?") === true){
+                        let response = await $.ajax({
+                            url:'/delete/'+id,
+                            type:'delete'
+                        });
+                        if(response === true){
+                            $(`#lineuser${id}`).remove();
+                        }else{
+                            alert("삭제실패");
+                        }
+                    }
+                }catch (e) {
+                    console.log(JSON.stringify(e));
+                }
+            }
+        }
+
+        let content = null;
+        async function EditComment(button,id) {
+            let line = $(`#line${id}`);
+            if($(button).text() === '수정'){
+                content = line.find('div:nth-child(2)').html();
+                let input = `<input value="${content}">`;
+                line.find('div:nth-child(2)').html(input);
+                line.find('input').focus();
+                $(button).text('확인');
+                $(button).next().text('취소');
+            }else if($(button).text() === '확인') {
+                let response = await $.ajax({
+                    url: '/updatecmt/' + id,
+                    type:'put',
+                    contentType:'application/json',
+                    dataType:'json',
+                    data:JSON.stringify({ comment : line.find('input').val() })
+                });
+                line.find('div:nth-child(2)').html(response.comment);
+                $(button).text('수정');
+                $(button).next().text('삭제');
+            }
+
+        }
+        CommentList();
+        UserList();
+    </script>
+</body>
+</html>
